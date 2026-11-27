@@ -384,6 +384,8 @@ export default {
   'fib.extendRight': '線を右へ延長',
   'fib.log': '対数スケール',
   'fib.logHint': '対数スケールのチャートのように、レベルを百分率で配置します',
+  'chart.legendCollapse': 'インジケーター一覧を折りたたむ',
+  'chart.legendExpand': 'インジケーター一覧を展開（{n} 件）',
   'chart.indHide': 'インジケーターを非表示',
   'chart.indShow': 'インジケーターを表示',
   'draw.style.solid': '実線',

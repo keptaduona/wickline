@@ -386,6 +386,8 @@ export default {
   'fib.extendRight': 'Extend lines to the right',
   'fib.log': 'Logarithmic scale',
   'fib.logHint': 'Spaces the levels by percentage, as on a log-scale chart',
+  'chart.legendCollapse': 'Collapse indicator legend',
+  'chart.legendExpand': 'Expand indicator legend ({n})',
   'chart.indHide': 'Hide indicator',
   'chart.indShow': 'Show indicator',
   'draw.style.solid': 'Solid line',

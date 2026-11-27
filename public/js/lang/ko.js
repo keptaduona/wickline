@@ -384,6 +384,8 @@ export default {
   'fib.extendRight': '선을 오른쪽으로 연장',
   'fib.log': '로그 스케일',
   'fib.logHint': '로그 스케일 차트처럼 레벨을 비율로 배치합니다',
+  'chart.legendCollapse': '지표 목록 접기',
+  'chart.legendExpand': '지표 목록 펼치기 ({n}개)',
   'chart.indHide': '지표 숨기기',
   'chart.indShow': '지표 표시',
   'draw.style.solid': '실선',

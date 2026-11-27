@@ -123,6 +123,7 @@ export function normalizeChartState(s = {}) {
     tf: tfIdOf(s.tf) || '1h', // any timeframe (timeframes.js); saved ids stay as they are
     chartType: CHART_TYPES.some(([k]) => k === s.chartType) ? s.chartType : 'candles',
     logScale: !!s.logScale,
+    indicatorLegendCollapsed: s.indicatorLegendCollapsed === true,
     indicators: (Array.isArray(s.indicators) ? s.indicators : defaultIndicators())
       .filter((i) => i && typeof i === 'object' && (i.type === 'script' ? (typeof i.scriptId === 'string' && i.scriptId) : Object.hasOwn(INDICATORS, i.type)))
       .map(normalizeIndicator),
@@ -248,6 +249,7 @@ export class ChartView {
 
     this.el = document.createElement('div');
     this.el.className = 'cell';
+    const legendId = `indicator-legend-${uid()}`;
     this.el.innerHTML = `
       <div class="chart-host"></div>
       <div class="legend">
@@ -259,9 +261,12 @@ export class ChartView {
           </div>
         </div>
         <div class="lg-ohlc"></div>
-        <div class="lg-ind"></div>
+        <div class="lg-ind" id="${legendId}"></div>
+        <button type="button" class="lg-toggle" aria-controls="${legendId} ${legendId}-panes" hidden>
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span hidden></span>
+        </button>
       </div>
-      <div class="pane-legends"></div>
+      <div class="pane-legends" id="${legendId}-panes"></div>
       <div class="draw-bar" hidden>
         <div class="db-colors">${DRAW_COLORS.map((c) => `<button data-color="${c}" style="--c:${c}" aria-label="${t('chart.colorAria', { color: c })}"></button>`).join('')}</div>
         <div class="db-stroke" hidden>
@@ -427,7 +432,9 @@ export class ChartView {
 
   // --- events ----------------------------------------------------------------
   bindEvents() {
-    this.el.addEventListener('pointerdown', () => this.hooks.onActivate?.(this), true);
+    this.el.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('.lg-toggle')) this.hooks.onActivate?.(this);
+    }, true);
 
     // Clicks and drags for drawings are read from the DOM: the chart library drops a second click
     // within ~500 ms of the first, and dragging a drawing must not pan the chart.
@@ -527,6 +534,15 @@ export class ChartView {
     };
     this.q('.legend').addEventListener('click', onLegendClick);
     this.q('.pane-legends').addEventListener('click', onLegendClick);
+
+    const legendToggle = this.q('.lg-toggle');
+    for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'dblclick', 'touchstart', 'touchend', 'wheel', 'keydown', 'keyup']) {
+      legendToggle.addEventListener(type, (e) => e.stopPropagation());
+    }
+    legendToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleIndicatorLegend();
+    });
 
     this.q('.cell-tools').addEventListener('click', (e) => {
       const act = e.target.closest('[data-cell]')?.dataset.cell;
@@ -1896,6 +1912,27 @@ export class ChartView {
   }
 
   // --- legend ------------------------------------------------------------------
+  toggleIndicatorLegend() {
+    if (!this.state.indicators.length) return;
+    this.state.indicatorLegendCollapsed = !this.state.indicatorLegendCollapsed;
+    this.updateIndicatorLegend();
+    this.hooks.onChange?.(this);
+  }
+
+  /** Only the labels collapse: series, indicator visibility and calculations stay untouched. */
+  updateIndicatorLegend() {
+    const collapsed = this.state.indicatorLegendCollapsed;
+    const button = this.q('.lg-toggle');
+    const count = this.state.indicators.length;
+    this.el.classList.toggle('indicators-collapsed', collapsed);
+    button.hidden = count === 0;
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.title = t(collapsed ? 'chart.legendExpand' : 'chart.legendCollapse', { n: count });
+    button.setAttribute('aria-label', button.title);
+    button.querySelector('span').hidden = !collapsed;
+    button.querySelector('span').textContent = String(count);
+  }
+
   updateTitle() {
     const m = this.meta;
     const ticker = this.ticker;
@@ -1949,6 +1986,7 @@ export class ChartView {
         entry.paneLegend = wrap;
       }
     }
+    this.updateIndicatorLegend();
     this.updateLegend(this.lastCrosshair);
     requestAnimationFrame(() => this.positionPaneLegends());
   }

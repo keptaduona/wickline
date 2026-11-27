@@ -384,6 +384,8 @@ export default {
   'fib.extendRight': '向右延伸线条',
   'fib.log': '对数刻度',
   'fib.logHint': '按百分比分布各级别，与对数刻度图表一致',
+  'chart.legendCollapse': '折叠指标列表',
+  'chart.legendExpand': '展开指标列表（{n} 个指标）',
   'chart.indHide': '隐藏指标',
   'chart.indShow': '显示指标',
   'draw.style.solid': '实线',

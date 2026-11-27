@@ -384,6 +384,8 @@ export default {
   'fib.extendRight': 'Estender linhas para a direita',
   'fib.log': 'Escala logarítmica',
   'fib.logHint': 'Distribui os níveis por porcentagem, como em um gráfico em escala logarítmica',
+  'chart.legendCollapse': 'Recolher a lista de indicadores',
+  'chart.legendExpand': 'Expandir a lista de indicadores ({n})',
   'chart.indHide': 'Ocultar indicador',
   'chart.indShow': 'Mostrar indicador',
   'draw.style.solid': 'Linha contínua',

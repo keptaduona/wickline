@@ -384,6 +384,8 @@ export default {
   'fib.extendRight': 'Linien nach rechts verlängern',
   'fib.log': 'Logarithmische Skala',
   'fib.logHint': 'Verteilt die Niveaus prozentual, wie bei einem Chart mit logarithmischer Skala',
+  'chart.legendCollapse': 'Indikatorenlegende einklappen',
+  'chart.legendExpand': 'Indikatorenlegende ausklappen ({n})',
   'chart.indHide': 'Indikator ausblenden',
   'chart.indShow': 'Indikator einblenden',
   'draw.style.solid': 'Durchgezogene Linie',

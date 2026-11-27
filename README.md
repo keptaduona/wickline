@@ -6,6 +6,7 @@ A free, open-source charting platform.
 - Live crypto, stocks, ETFs, indices, forex and futures, on any timeframe (2m, 45m, 3H…).
 - Option chains with Greeks for US stocks, ETFs, Bitcoin and Ether.
 - 100 built-in indicators, plus your own indicators and strategies written in JavaScript, with backtesting.
+- **Collapsible indicator legend:** click the small up arrow below a chart's indicator labels to collapse its overlay and pane labels; click the down arrow and count to expand. Indicators keep drawing and updating. Each chart remembers its own choice across symbols, timeframes, layouts and restarts. The button also works with Tab, Enter and Space.
 - Drawing tools, price alerts and multi-chart layouts.
 - A community library: publish your scripts for everyone, and add other people's with one click.
 - No account, no API keys, no subscription.
