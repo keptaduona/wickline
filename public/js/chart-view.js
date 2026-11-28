@@ -8,6 +8,7 @@ import { tfIdOf } from './timeframes.js';
 import { INDICATORS, PALETTE, UP, DOWN, defaultParams, indicatorLabel, optionLabel, heikinAshi, heikinAshiAt } from './indicators.js';
 import { DrawingLayer, DRAW_COLORS, SYMBOL_SIZE, TOOLS, isSymbol } from './drawings.js';
 import { applyEntryVisibility, isHidden, setHiddenFlag, syncMarkers } from './entry-visibility.js';
+import { hitIndicator } from './indicator-hit-test.js';
 import { closeFibPanel, fibPanelId, openFibPanel } from './fib-panel.js';
 import { closePointEditor, editablePoints, openPointEditor, pointEditorId, refreshPointEditor } from './point-editor.js';
 import { STROKE_STYLES, STROKE_TOOLS, STROKE_WIDTH, clampWidth, strokeOf } from './stroke.js';
@@ -452,6 +453,47 @@ export class ChartView {
     const y = e.clientY - paneEl.getBoundingClientRect().top;
     if (!allowOutside && !(x >= 0 && x <= this.chart.timeScale().width() && y >= 0 && y <= pane.getHeight())) return null;
     return { x, y };
+  }
+
+  middleEraseTarget(e, hit) {
+    const base = { layer: this.drawings, host: this.chartEl };
+    if (this.replayPick || this.drag) return { ...base, point: null };
+    const row = hit.closest('.lg-row[data-id]');
+    if (row && this.el.contains(row)) {
+      return { ...base, scope: row, point: { x: e.clientX, y: e.clientY },
+        eraseAt: (x, y, seen) => this.eraseIndicator(row.dataset.id, seen), valid: () => row.isConnected };
+    }
+    if (!this.chartEl.contains(hit)) return null;
+    const pane = this.chart.panes().find((p) => p.getHTMLElement()?.contains(hit));
+    const element = pane?.getHTMLElement();
+    if (!element) return { ...base, point: null };
+    const x = e.clientX - this.chartEl.getBoundingClientRect().left;
+    const y = e.clientY - element.getBoundingClientRect().top;
+    if (!(x >= 0 && x <= this.chart.timeScale().width() && y >= 0 && y <= pane.getHeight())) return { ...base, point: null };
+    const version = this._indicatorEraseVersion, indicators = new Set();
+    return { ...base, scope: element, point: { x, y },
+      flush: () => { for (const id of indicators) this.eraseIndicator(id); },
+      valid: () => !this.destroyed && element.isConnected && this._indicatorEraseVersion === version,
+      eraseAt: (px, py, seen) => {
+        if (element === this.chart.panes()[0]?.getHTMLElement()) {
+          const drawing = this.drawings.eraseAt(px, py, seen);
+          if (drawing) return drawing;
+        }
+        const id = hitIndicator(this.live.values(), this.chart.timeScale(), element, px, py, seen);
+        if (!id) return null;
+        indicators.add(id);
+        seen.add(`indicator:${id}`);
+        return `indicator:${id}`;
+      } };
+  }
+
+  eraseIndicator(id, seen) {
+    if (!id || !this.live.has(id) || seen?.has(`indicator:${id}`)) return null;
+    this.removeIndicator(id);
+    seen?.add(`indicator:${id}`);
+    // Removing a pane or rescaling its neighbors invalidates this segment's sampled coordinates.
+    this._indicatorEraseVersion = (this._indicatorEraseVersion ?? 0) + 1;
+    return `indicator:${id}`;
   }
 
   // --- events ----------------------------------------------------------------

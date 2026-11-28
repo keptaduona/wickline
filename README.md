@@ -8,6 +8,7 @@ A free, open-source charting platform.
 - 100 built-in indicators, plus your own indicators and strategies written in JavaScript, with backtesting.
 - **Collapsible indicator legend:** click the small up arrow below a chart's indicator labels to collapse its overlay and pane labels; click the down arrow and count to expand. Indicators keep drawing and updating. Each chart remembers its own choice across symbols, timeframes, layouts and restarts. The button also works with Tab, Enter and Space.
 - Drawing tools, price alerts and multi-chart layouts.
+- **Middle-button quick delete:** click the mouse wheel on a drawing, indicator plot or indicator name to remove it, or hold it and sweep over drawings and indicator plots. The pointer stays a normal arrow while held; the current tool and unfinished drawing are preserved. Changes save through the existing storage. Drawing erasures are one undo step per gesture and chart; indicator removal follows the legend's Remove action and is not part of drawing undo.
 - A community library: publish your scripts for everyone, and add other people's with one click.
 - No account, no API keys, no subscription.
 

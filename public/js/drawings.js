@@ -71,7 +71,7 @@ function rgba(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-function distToSegment(px, py, x1, y1, x2, y2) {
+export function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1;
   const len2 = dx * dx + dy * dy;
   const t = len2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2)) : 0;
@@ -130,6 +130,8 @@ export class DrawingLayer {
     this.series = null;
     this.drag = null;
     this._histories = new Map(); // symbol → { undo, redo, last, mark, at }: see _changed
+    this.erasing = false;
+    this._eraseMark = null;
     const saved = settings.get('magnet', 'off');
     this.magnet = MAGNET_MODES.includes(saved) ? saved : 'off';
     this.symbolSize = sizeStore.load();
@@ -282,11 +284,35 @@ export class DrawingLayer {
   }
 
   deleteSelected() {
-    if (!this.selectedId) return false;
-    this.items = this.items.filter((d) => d.id !== this.selectedId);
-    this.select(null);
-    this._changed(true);
+    return this.remove(this.selectedId);
+  }
+
+  remove(id, mark = null) {
+    if (!id || (id !== this.selectedId && !this.items.some((d) => d.id === id))) return false;
+    this.items = this.items.filter((d) => d.id !== id);
+    if (this.selectedId === id) this.select(null);
+    this._changed(true, mark);
     return true;
+  }
+
+  beginErase() {
+    this.erasing = true;
+    this._eraseMark = Symbol('erase');
+  }
+
+  endErase() {
+    const h = this._histories.get(this.key);
+    if (h?.mark === this._eraseMark) h.mark = null;
+    this._eraseMark = null;
+    this.erasing = false;
+  }
+
+  /** Erase only the topmost eligible manual drawing; use the same geometry and save path as Delete. */
+  eraseAt(x, y, seen) {
+    const id = this.hitTest(x, y, { topmost: true, boxMargin: HIT_PX, filter: (d) => !d.locked && !d.hidden && !seen?.has(d.id) });
+    if (!this.remove(id, this._eraseMark)) return null;
+    seen?.add(id);
+    return id;
   }
 
   clearAll() {
@@ -340,7 +366,7 @@ export class DrawingLayer {
     if (save && this.key) {
       const h = this._history(), now = snapshot(this.items);
       if (h.last != null && now !== h.last) {
-        if (!(mark && mark === h.mark && Date.now() - h.at < COALESCE_MS)) {
+        if (!(mark && mark === h.mark && (mark === this._eraseMark || Date.now() - h.at < COALESCE_MS))) {
           h.undo.push(h.last);
           if (h.undo.length > HISTORY_MAX) h.undo.shift();
         } else if (h.undo.at(-1) === now) { // the burst ended where it started: nothing to undo
@@ -468,6 +494,7 @@ export class DrawingLayer {
   // --- creating drawings ----------------------------------------------------------
   /** Returns true when the click was used by the drawing layer. */
   handleClick(param) {
+    if (this.erasing) return false;
     if (this.tool === 'cursor') {
       if (!param.point) return false;
       const hit = this.hitTest(param.point.x, param.point.y);
@@ -521,6 +548,7 @@ export class DrawingLayer {
   }
 
   handleMove(param) {
+    if (this.erasing) return;
     if (!param.point) { this._setHint(null); return; }
     this._lastXY = { x: param.point.x, y: param.point.y };
     if (this.drag) return; // dragMove owns the pointer while a drawing is being dragged
@@ -618,21 +646,22 @@ export class DrawingLayer {
     this.onSelect?.(this.selected);
   }
 
-  hitTest(x, y) {
+  hitTest(x, y, { filter, topmost = false, boxMargin = 0 } = {}) {
     if (!this.series || !this.chart) return null;
     let best = null, bestD = HIT_PX;
     for (const d of this.items) {
-      const dist = this._distance(d, x, y);
-      if (dist != null && dist <= bestD) { best = d.id; bestD = dist; }
+      if (filter && !filter(d)) continue;
+      const dist = this._distance(d, x, y, boxMargin);
+      if (dist != null && dist <= (topmost ? HIT_PX : bestD)) { best = d.id; bestD = dist; }
     }
     return best;
   }
 
-  _distance(d, x, y) {
+  _distance(d, x, y, boxMargin = 0) {
     const x1 = this._x(d.p1.time), y1 = this._y(d.p1.price);
     const x2 = this._x(d.p2.time), y2 = this._y(d.p2.price);
     if (y1 == null) return null;
-    const inBox = (ax, ay, bx, by) => x >= Math.min(ax, bx) && x <= Math.max(ax, bx) && y >= Math.min(ay, by) && y <= Math.max(ay, by);
+    const inBox = (ax, ay, bx, by) => x >= Math.min(ax, bx) - boxMargin && x <= Math.max(ax, bx) + boxMargin && y >= Math.min(ay, by) - boxMargin && y <= Math.max(ay, by) + boxMargin;
     switch (d.type) {
       case 'hline': return Math.abs(y - y1);
       case 'hray': return x1 != null && x >= x1 - HIT_PX ? Math.abs(y - y1) : null;
