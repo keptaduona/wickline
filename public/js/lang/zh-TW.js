@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n} 天',
   'draw.durH': '{n} 小時',
   'draw.durM': '{n} 分鐘',
+  'draw.durS': '{n} 秒',
   'draw.target': '停利 {price} ({pct})',
   'draw.stop': '停損 {price} ({pct})',
   'draw.longRR': '做多 · 風報比 {rr}',

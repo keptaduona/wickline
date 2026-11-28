@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n}日',
   'draw.durH': '{n}時間',
   'draw.durM': '{n}分',
+  'draw.durS': '{n}秒',
   'draw.target': '利確{price}（{pct}）',
   'draw.stop': '損切り{price}（{pct}）',
   'draw.longRR': 'ロング · R:R {rr}',

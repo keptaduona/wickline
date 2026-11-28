@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n} j',
   'draw.durH': '{n} h',
   'draw.durM': '{n} min',
+  'draw.durS': '{n} s',
   'draw.target': 'Objectif {price} ({pct})',
   'draw.stop': 'Stop {price} ({pct})',
   'draw.longRR': 'Long · R:R {rr}',

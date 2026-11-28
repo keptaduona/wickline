@@ -7,6 +7,7 @@ import { createFeed, tfById, parseSymbol, displayTicker, isCryptoSymbol, sourceN
 import { tfIdOf } from './timeframes.js';
 import { INDICATORS, PALETTE, UP, DOWN, defaultParams, indicatorLabel, optionLabel, heikinAshi, heikinAshiAt } from './indicators.js';
 import { DrawingLayer, DRAW_COLORS, SYMBOL_SIZE, TOOLS, isSymbol } from './drawings.js';
+import { ShiftDragMeasure } from './shift-measure.js';
 import { applyEntryVisibility, isHidden, setHiddenFlag, syncMarkers } from './entry-visibility.js';
 import { closeFibPanel, fibPanelId, openFibPanel } from './fib-panel.js';
 import { closePointEditor, editablePoints, openPointEditor, pointEditorId, refreshPointEditor } from './point-editor.js';
@@ -456,6 +457,17 @@ export class ChartView {
 
   // --- events ----------------------------------------------------------------
   bindEvents() {
+    this.shiftMeasure = new ShiftDragMeasure(this.chartEl, this.drawings, {
+      canStart: (point) => !this.destroyed && !this.rebuilding && !this.replayPick && !this.drag
+        && this.drawings.tool === 'cursor' && !this.drawings.pending && !this.drawings.drag && this.q('.overlay.loading').hidden
+        && (!point || !this.paperHit(point.y)),
+      pointAt: (e, outside) => {
+        const p = this.paneCoords(e, outside);
+        if (!p) return null;
+        return { x: Math.max(0, Math.min(this.chart.timeScale().width(), p.x)),
+          y: Math.max(0, Math.min(this.chart.panes()[0].getHeight(), p.y)) };
+      },
+    });
     this.el.addEventListener('pointerdown', (e) => {
       if (!e.target.closest('.lg-toggle')) this.hooks.onActivate?.(this);
     }, true);
@@ -1160,6 +1172,7 @@ export class ChartView {
 
   /** Recreate every series in z-order: volume behind price, other overlays on top. */
   rebuildSeries() {
+    this.shiftMeasure?.cancel();
     this.rebuilding = true;
     try {
       for (const entry of [...this.live.values()]) this.removeIndicatorSeries(entry);
@@ -1261,7 +1274,7 @@ export class ChartView {
     this.hooks.onChange?.(this);
   }
 
-  setTool(tool) { this.drawings.setTool(tool); }
+  setTool(tool) { this.shiftMeasure.cancel(); this.drawings.setTool(tool); }
   cancelDrawing() { return this.drawings.cancel(); }
   deleteSelectedDrawing() { return this.drawings.deleteSelected(); }
   duplicateSelectedDrawing() { return this.drawings.duplicateSelected(); }
@@ -1363,6 +1376,7 @@ export class ChartView {
   }
 
   destroy() {
+    this.shiftMeasure.destroy();
     this.destroyed = true;
     clearInterval(this.replay?.timer);
     VIEWS.delete(this);
@@ -1476,6 +1490,7 @@ export class ChartView {
   }
 
   async load() {
+    this.shiftMeasure.cancel();
     const gen = ++this.loadGen;
     this.pauseReplay();
     this.feed?.close();
@@ -1871,6 +1886,7 @@ export class ChartView {
 
   /** Shows every loaded candle and lets the user click where the replay should start. */
   startReplayPick() {
+    this.shiftMeasure.cancel();
     if (!this.bars.length || !this.feed) return false;
     this.pauseReplay();
     if (this.replay) { this.bars = this.replay.all.slice(); this.renderAll(false); }
