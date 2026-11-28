@@ -253,6 +253,7 @@ body[data-resizing] .cell { pointer-events: none; }
   border: 1px solid var(--accent);
 }
 .chart-host.drawing { cursor: crosshair; }
+.chart-host.shift-measuring, .chart-host.shift-measuring * { cursor: crosshair !important; }
 
 /* "Go to the latest candle" (chart-view.js updateToLatest), in the corner of the price pane. */
 .to-latest {

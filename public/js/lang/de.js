@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n}T',
   'draw.durH': '{n}Std',
   'draw.durM': '{n}Min',
+  'draw.durS': '{n}Sek',
   'draw.target': 'Ziel {price} ({pct})',
   'draw.stop': 'Stop {price} ({pct})',
   'draw.longRR': 'Long · CRV {rr}',

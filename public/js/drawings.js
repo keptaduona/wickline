@@ -7,6 +7,7 @@ import { fixed, store as settings } from './util.js';
 import { STROKE_TOOLS, strokeOf } from './stroke.js';
 import { activeLevels, fibOf, labelText, levelPrice } from './fib.js';
 import { LABEL_TOOLS, labelPosDefault } from './point-editor.js';
+import { measurementStats, measurementText } from './measurement.js';
 
 export const TOOLS = {
   cursor: { label: t('draw.tool.cursor'), points: 0 },
@@ -129,6 +130,8 @@ export class DrawingLayer {
     this.chart = null;
     this.series = null;
     this.drag = null;
+    this.measurement = null;
+    this.measuring = false;
     this._histories = new Map(); // symbol → { undo, redo, last, mark, at }: see _changed
     const saved = settings.get('magnet', 'off');
     this.magnet = MAGNET_MODES.includes(saved) ? saved : 'off';
@@ -156,6 +159,7 @@ export class DrawingLayer {
     }
   }
   detached() {
+    this.clearMeasurement();
     this.series = null;
     this._request = null;
     if (typeof window !== 'undefined') {
@@ -171,6 +175,7 @@ export class DrawingLayer {
 
   // --- context ----------------------------------------------------------------
   setContext(symbolKey, tfSec) {
+    this.clearMeasurement();
     this.key = symbolKey;
     this.tfSec = tfSec;
     this.items = store.load(symbolKey).filter((d) => TOOLS[d.type]);
@@ -186,6 +191,7 @@ export class DrawingLayer {
   setTheme(theme) { this.theme = theme; this._request?.(); }
 
   setTool(tool) {
+    this.clearMeasurement();
     this.tool = tool;
     this.pending = null;
     if (tool !== 'cursor') this.select(null);
@@ -254,6 +260,7 @@ export class DrawingLayer {
   }
 
   cancel() {
+    if (this.clearMeasurement()) return true;
     if (this.pending) { this.pending = null; this._finishTool(); return true; }
     if (this.selectedId) { this.select(null); return true; }
     return false;
@@ -290,6 +297,7 @@ export class DrawingLayer {
   }
 
   clearAll() {
+    this.clearMeasurement();
     this.items = [];
     this.pending = null;
     this.select(null);
@@ -465,9 +473,41 @@ export class DrawingLayer {
     return p1.price + ((p2.price - p1.price) * (l - l1)) / (l2 - l1);
   }
 
+  beginMeasurement(x, y) {
+    if (this.tool !== 'cursor' || this.pending || this.drag || !this.bars.length || this.hitTest(x, y)) return false;
+    // Selected handles keep the existing Shift-to-horizontal editing gesture.
+    const selected = this.selected;
+    if (selected && !selected.locked && this._handles(selected).some(([, hx, hy]) => Math.hypot(hx - x, hy - y) <= HANDLE_PX)) return false;
+    const p = this._point(x, y);
+    if (!p || !Number.isFinite(p.price) || !Number.isFinite(p.time)) return false;
+    this.measurement = { type: 'measure', p1: { time: p.time, price: p.price }, p2: { time: p.time, price: p.price } };
+    this.measuring = true;
+    this._request?.();
+    return true;
+  }
+
+  moveMeasurement(x, y) {
+    if (!this.measuring || !this.measurement) return;
+    const p = this._point(x, y);
+    if (!p || !Number.isFinite(p.price) || !Number.isFinite(p.time)) return;
+    this.measurement.p2 = { time: p.time, price: p.price };
+    this._request?.();
+  }
+
+  endMeasurement() { this.measuring = false; }
+
+  clearMeasurement() {
+    if (!this.measurement && !this.measuring) return false;
+    this.measurement = null;
+    this.measuring = false;
+    this._request?.();
+    return true;
+  }
+
   // --- creating drawings ----------------------------------------------------------
   /** Returns true when the click was used by the drawing layer. */
   handleClick(param) {
+    if (this.measuring) return false;
     if (this.tool === 'cursor') {
       if (!param.point) return false;
       const hit = this.hitTest(param.point.x, param.point.y);
@@ -521,6 +561,7 @@ export class DrawingLayer {
   }
 
   handleMove(param) {
+    if (this.measuring) return;
     if (!param.point) { this._setHint(null); return; }
     this._lastXY = { x: param.point.x, y: param.point.y };
     if (this.drag) return; // dragMove owns the pointer while a drawing is being dragged
@@ -568,7 +609,7 @@ export class DrawingLayer {
 
   /** Starts dragging when (x, y) is on the selected drawing's handle or on any drawing (a locked one is only selected). */
   beginDrag(x, y) {
-    if (this.tool !== 'cursor' || !this.series) return false;
+    if (this.measuring || this.tool !== 'cursor' || !this.series) return false;
     const sel = this.selected;
     if (sel && !sel.locked) {
       const h = this._handles(sel).find(([, hx, hy]) => Math.hypot(hx - x, hy - y) <= HANDLE_PX);
@@ -698,6 +739,11 @@ export class DrawingLayer {
         try { this._drawItem(ctx, d, mediaSize, d === this.pending || d.id === this.selectedId); } catch { /* skip */ }
         ctx.restore();
       }
+      if (this.measurement) {
+        ctx.save();
+        this._drawItem(ctx, this.measurement, mediaSize, false);
+        ctx.restore();
+      }
       const h = this.hint;
       const hx = h ? this._x(h.time) : null, hy = h ? this._y(h.price) : null;
       if (hx != null && hy != null) { // the magnet is snapping here
@@ -724,11 +770,16 @@ export class DrawingLayer {
     return { cfg, levels, left: cfg.extendLeft ? 0 : Math.min(x1, x2), right: cfg.extendRight ? width : Math.max(x1, x2) };
   }
 
-  _label(ctx, text, x, y, bg, align = 'center') {
+  _label(ctx, text, x, y, bg, align = 'center', bounds = null) {
     ctx.font = '600 11px -apple-system, "Segoe UI", Roboto, sans-serif';
     const lines = String(text).split('\n');
-    const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12;
+    let w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12;
     const h = lines.length * 15 + 6;
+    if (bounds) {
+      w = Math.min(w, Math.max(16, bounds.width - 8));
+      x = Math.max(w / 2 + 4, Math.min(bounds.width - w / 2 - 4, x));
+      y = Math.max(h / 2 + 4, Math.min(bounds.height - h / 2 - 4, y));
+    }
     const left = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
     ctx.fillStyle = bg;
     ctx.beginPath();
@@ -737,7 +788,11 @@ export class DrawingLayer {
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    lines.forEach((l, k) => ctx.fillText(l, left + 6, y - h / 2 + 3 + 7.5 + k * 15));
+    lines.forEach((l, k) => {
+      const ly = y - h / 2 + 3 + 7.5 + k * 15;
+      if (bounds) ctx.fillText(l, left + 6, ly, Math.max(1, w - 12));
+      else ctx.fillText(l, left + 6, ly);
+    });
   }
 
   /** Arrow geometry for a symbol whose tip is at (x, y): the label sits beyond the tail. */
@@ -923,14 +978,13 @@ export class DrawingLayer {
         const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
         line(mx, y1, mx, y2);
         line(x1, my, x2, my);
-        const dp = d.p2.price - d.p1.price;
-        const pct = d.p1.price ? (dp / d.p1.price) * 100 : 0;
-        const nb = Math.round(this.logicalFromTime(d.p2.time) - this.logicalFromTime(d.p1.time));
-        const secs = Math.abs(d.p2.time - d.p1.time);
-        const dur = secs >= 86400 ? t('draw.durD', { n: Math.round(secs / 86400) })
-          : secs >= 3600 ? t('draw.durH', { n: Math.round(secs / 3600) }) : t('draw.durM', { n: Math.round(secs / 60) });
-        this._label(ctx, `${dp >= 0 ? '+' : ''}${this.formatPrice(dp)} (${pct >= 0 ? '+' : ''}${fixed(pct, 2)}%)\n${t('draw.measure', { n: nb, dur })}`,
-          mx, up ? Math.min(y1, y2) - 22 : Math.max(y1, y2) + 22, col);
+        const dx = Math.sign(x2 - x1), dy = Math.sign(y2 - y1);
+        if (dx) { line(x2 - dx * 6, my - 4, x2, my); line(x2 - dx * 6, my + 4, x2, my); }
+        if (dy) { line(mx - 4, y2 - dy * 6, mx, y2); line(mx + 4, y2 - dy * 6, mx, y2); }
+        const stats = measurementStats(d.p1, d.p2, (time) => this.logicalFromTime(time), this.series.options?.().priceFormat?.minMove);
+        const text = measurementText(stats, this.formatPrice);
+        this._label(ctx, text, mx, up ? Math.min(y1, y2) - 26 : Math.max(y1, y2) + 26,
+          up ? '#285BC4' : '#B73535', 'center', size);
         break;
       }
       case 'long': case 'short': {

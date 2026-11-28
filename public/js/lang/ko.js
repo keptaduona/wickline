@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n}일',
   'draw.durH': '{n}시간',
   'draw.durM': '{n}분',
+  'draw.durS': '{n}초',
   'draw.target': '목표 {price} ({pct})',
   'draw.stop': '손절 {price} ({pct})',
   'draw.longRR': '롱 · 손익비 {rr}',

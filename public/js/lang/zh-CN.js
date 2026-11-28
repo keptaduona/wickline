@@ -531,6 +531,7 @@ export default {
   'draw.durD': '{n} 天',
   'draw.durH': '{n} 小时',
   'draw.durM': '{n} 分钟',
+  'draw.durS': '{n} 秒',
   'draw.target': '止盈 {price} ({pct})',
   'draw.stop': '止损 {price} ({pct})',
   'draw.longRR': '做多 · 盈亏比 {rr}',
