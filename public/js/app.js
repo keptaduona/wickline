@@ -15,6 +15,7 @@ import {
 } from './theme.js';
 import { TOOLS, MAGNET_MODES } from './drawings.js';
 import { FavoriteToolsState, FavoriteToolsBar } from './favorite-tools.js';
+import { MiddleMouseEraser } from './middle-mouse-eraser.js';
 import { SymbolSearch } from './search.js';
 import { QuoteList } from './quote-list.js';
 import { cleanList, isSection, sectionName, symbolsOf, addSection, renameSection, removeSection, moveEntry } from './watchlist.js';
@@ -179,6 +180,15 @@ let activeView = null;
 let maximized = null;
 let crosshairOwner = null;
 
+// Resolve the real element under the pointer, even while the workspace owns pointer capture.
+new MiddleMouseEraser(chartsEl, (event) => {
+  const hit = document.elementFromPoint(event.clientX, event.clientY);
+  const view = views.find((v) => !v.destroyed && v.el.contains(hit));
+  if (!view) return null;
+  const target = view.middleEraseTarget(event, hit);
+  return target && { ...target, activate: () => setActive(view, false, true) };
+});
+
 function createView(state) {
   const v = new ChartView(chartsEl, state, {
     onActivate: (x) => setActive(x),
@@ -335,9 +345,9 @@ chartsEl.addEventListener('dblclick', (e) => {
   saveSizes();
 });
 
-function setActive(v, force = false) {
+function setActive(v, force = false, preserveDrawing = false) {
   if (!v || (v === activeView && !force)) return;
-  if (activeView && activeView !== v) {
+  if (activeView && activeView !== v && !preserveDrawing) {
     activeView.cancelDrawing();
     activeView.setTool('cursor');
   }
