@@ -85,7 +85,12 @@ if(!process.versions.electron){
     const axis=await run(`(()=>{const r=window.__wickline.views()[0].chartEl.getBoundingClientRect();return{x:r.right-12,y:r.top+170}})()`);setShift(true);await click(axis);setShift(false);check('Shift on the price axis does not start measurement',!(await state()).measurement);
     const sub=await run(`(()=>{const p=window.__wickline.views()[0].chart.panes()[1].getHTMLElement().getBoundingClientRect();return{x:p.left+100,y:p.top+30}})()`);setShift(true);await click(sub);setShift(false);check('indicator panes do not measure using the main price scale',!(await state()).measurement);
     await run(`window.__wickline.views()[0].drawings.select(null)`);a=await at(200,180);b=await at(440,240);await measure(a,b,false);await run(`window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:window.__measurePointer}))`);mouse('mouseUp',b);setShift(false);check('pointercancel cleans up temporary state',!(await state()).measurement&&!(await state()).active&&!(await state()).captured);
-    setShift(true);mouse('mouseMove',a,'none');mouse('mouseDown',a);await run(`window.__wickline.views()[0].chartEl.releasePointerCapture(window.__measurePointer)`);mouse('mouseMove',{x:a.x+2,y:a.y});mouse('mouseUp',a);setShift(false);await wait(50);check('unexpected capture loss during the anchor press cancels safely',!(await state()).active&&!(await state()).active&&!(await state()).captured&&!(await state()).measuring);
+    await run(`window.__forcedMeasureCapture=false;window.__wickline.views()[0].chartEl.addEventListener('gotpointercapture',()=>window.__forcedMeasureCapture=true,{once:true})`);
+    setShift(true);mouse('mouseMove',a,'none');mouse('mouseDown',a);mouse('mouseMove',{x:a.x+1,y:a.y});
+    await until(`window.__forcedMeasureCapture&&!!window.__wickline.views()[0].shiftMeasure.session?.captured`);
+    await run(`window.__wickline.views()[0].chartEl.releasePointerCapture(window.__measurePointer)`);mouse('mouseMove',{x:a.x+2,y:a.y});
+    await until(`!window.__wickline.views()[0].shiftMeasure.session`);mouse('mouseUp',a);setShift(false);
+    check('unexpected capture loss during the anchor press cancels safely',!(await state()).active&&!(await state()).captured&&!(await state()).measuring);
     await measure(a,b,false);mouse('mouseMove',{x:-20,y:-20});mouse('mouseLeave',{x:-20,y:-20},'none');await wait(40);mouse('mouseUp',b);setShift(false);check('leaving the native window cancels the active measurement',!(await state()).measurement&&!(await state()).active&&!(await state()).captured);
     win.setSkipTaskbar(true);win.setPosition(-10000,-10000);win.show();win.focus();
     for(let i=0;i<80&&!win.isFocused();i++)await wait(40);
